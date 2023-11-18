@@ -1,138 +1,133 @@
+from sklearn.datasets import load_iris,load_breast_cancer
 from rest_framework.views import APIView
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from django.http import JsonResponse
 from scipy.cluster.hierarchy import dendrogram, linkage
 import pandas as pd
+from sklearn.cluster import KMeans
+from sklearn_extra.cluster import KMedoids
+from sklearn.cluster import Birch, DBSCAN
+from sklearn import metrics
 from rest_framework import status
 import matplotlib.pyplot as plt
-from sklearn.datasets import load_iris
 import base64
-from sklearn.cluster import KMeans, DBSCAN
-# from sklearn_extra.cluster import KMedoids
-from sklearn.cluster import Birch
-from sklearn import metrics
-from sklearn.preprocessing import StandardScaler
-
-from pyclustering.cluster.kmedoids import kmedoids
-from pyclustering.cluster import cluster_visualizer
-from pyclustering.utils import read_sample
-from pyclustering.samples.definitions import FCPS_SAMPLES
-
+import io
+import numpy as np
 
 class Clustering(APIView):
-    def __init__(self):
-        self.df = None
-
     @method_decorator(csrf_exempt)
     def post(self, request, *args, **kwargs):
         if request.method == 'POST':
             try:
                 # Get the uploaded CSV file from the request
                 file = request.FILES.get('file')
-                # Read the file name of the uploaded file
-                filename = file._name
-                self.df = pd.read_csv(file)
-                print(filename)
+                algorithm = request.POST.get('algorithm')
+                print(algorithm)
+                # read the file name of the uploaded file
+                filename = file.name
+                df = pd.read_csv(file)
 
-                if filename == "iris.csv":
+                if(filename == 'iris.csv'):
                     # Load the Iris dataset
-                    iris = load_iris()
-
+                    iris = load_iris() 
                     # Create a DataFrame from the dataset
-                    self.df = pd.DataFrame(data=iris.data, columns=iris.feature_names)
+                    df = pd.DataFrame(data=iris.data, columns=iris.feature_names)
+                elif(filename == 'breastCancer.csv'):
+                    breastCancer = load_breast_cancer()
+                    df = pd.DataFrame(data=breastCancer.data, columns=breastCancer.feature_names)
+                print(df.info())
 
+                # Perform hierarchical clustering using AGNES method
+                agnes_linkage = linkage(df, method='average', metric='euclidean')
+                agnes_dendrogram_path = self.plot_dendrogram(agnes_linkage, df.index, 'AGNES Dendrogram')
+
+                # Perform hierarchical clustering using DIANA method
+                diana_linkage = linkage(df, method='ward', metric='euclidean')
+                diana_dendrogram_path = self.plot_dendrogram(diana_linkage, df.index, 'DIANA Dendrogram')
+
+                # Perform k-Means clustering
+                k_means = KMeans(n_clusters=3)  # Set the number of clusters based on your data
+                k_means_clusters = k_means.fit_predict(df)
+
+                # Perform k-Medoids (PAM) clustering
+                k_medoids = KMedoids(n_clusters=3)  # Set the number of clusters based on your data
+                k_medoids_clusters = k_medoids.fit_predict(df)
+
+                # Perform BIRCH clustering
+                birch = Birch(n_clusters=3)  # Set the number of clusters based on your data
+                birch_clusters = birch.fit_predict(df)
+
+                # Perform DBSCAN clustering
+                dbscan = DBSCAN(eps=1.0, min_samples=5)  # Set parameters based on your data
+                dbscan_clusters = dbscan.fit_predict(df)
+
+                # Calculate cluster validation accuracy
+                k_means_accuracy = metrics.silhouette_score(df, k_means_clusters)
+                k_medoids_accuracy = metrics.silhouette_score(df, k_medoids_clusters)
+                birch_accuracy = metrics.silhouette_score(df, birch_clusters)
+
+                # dbscan_accuracy = metrics.silhouette_score(df, dbscan_clusters)
+                # Filter out noise points (cluster -1)
+                valid_labels = dbscan_clusters[dbscan_clusters != -1]
+                valid_samples = df[dbscan_clusters != -1]
+
+                # Check if there are valid clusters
+                if len(np.unique(valid_labels)) > 1:
+                    dbscan_accuracy = metrics.silhouette_score(valid_samples, valid_labels)
+                else:
+                    dbscan_accuracy = 0  # or any other default value when there's only one cluster
+
+
+                if(algorithm == 'agens'):
+                    return JsonResponse({"agnes_dendrogram_path": agnes_dendrogram_path,})
+                elif algorithm == 'diana':
+                    return JsonResponse({"diana_dendrogram_path": diana_dendrogram_path,})
+                elif algorithm == 'kmeans':
+                    return JsonResponse({"k_means_accuracy": k_means_accuracy, "k_means_clusters": k_means_clusters.tolist()})
+                
+                elif algorithm == 'kmedoids':
+                    return JsonResponse({"k_medoids_accuracy": k_means_accuracy, "k_medoids_clusters": k_means_clusters.tolist()})
+                
+                elif algorithm == 'birch':
+                    return JsonResponse({"birch_clusters": birch_clusters.tolist(), "birch_accuracy": birch_accuracy})
+                
+                elif algorithm == 'dbscan':
+                    return JsonResponse({"dbscan_clusters": dbscan_clusters.tolist(), "dbscan_accuracy": dbscan_accuracy})
+                
                 result = {
-                    "agnes_dendrogram": self.AGNES_Dendrogram(),
-                    "diana_dendrogram": self.DIANA_Dendrogram(),
-                    "k_means_clusters": self.k_Means_Clustering(),
-                    "k_medoids_clusters": self.k_Medoids_Clustering(),
-                    "birch_clusters": self.BIRCH_Clustering(),
-                    "dbscan_clusters": self.DBSCAN_Clustering(),
+                    "agnes_dendrogram_path": agnes_dendrogram_path,
+                    "diana_dendrogram_path": diana_dendrogram_path,
+                    "k_means_clusters": k_means_clusters.tolist(),
+                    "k_medoids_clusters": k_medoids_clusters.tolist(),
+                    "birch_clusters": birch_clusters.tolist(),
+                    "dbscan_clusters": dbscan_clusters.tolist(),
+                    "k_means_accuracy": k_means_accuracy,
+                    "k_medoids_accuracy": k_medoids_accuracy,
+                    "birch_accuracy": birch_accuracy,
+                    "dbscan_accuracy": dbscan_accuracy,
                 }
 
-                # Tabulate the results with cluster validation accuracy
-                accuracy = self.calculate_cluster_accuracy()
-                result["cluster_accuracy"] = accuracy
-
-                # Return the result as a JSON response
                 return JsonResponse(result)
             except Exception as e:
                 # Handle any exceptions and return an error response
-                print("ERROR:", str(e))
-                return JsonResponse({"error": str(e), "msg": "Please preprocess the data!"}, status=status.HTTP_200_OK)
+                return JsonResponse({"error": str(e)}, status=status.HTTP_200_OK)
 
-    def k_Means_Clustering(self):
-        # Perform k-Means clustering
-        kmeans = KMeans(n_clusters=3, random_state=0)
-        kmeans.fit(self.df)
-        return kmeans.labels_
+    def plot_dendrogram(self, linkage_matrix, labels, title):
+        plt.figure(figsize=(12, 6))
+        plt.title(title)
+        dendrogram(linkage_matrix, orientation='top', labels=labels)
+        plt.xlabel('Samples')
+        plt.ylabel('Distance')
+        dendrogram_path = f'{title.lower().replace(" ", "_")}_dendrogram.png'
+        plt.savefig(dendrogram_path)
+        plt.close()
 
-    # def k_Medoids_Clustering(self):
-    #     # Perform k-Medoids (PAM) clustering
-    #     kmedoids = KMedoids(n_clusters=3, random_state=0)
-    #     kmedoids.fit(self.df)
-    #     return kmedoids.labels_
+        # Convert the image to base64 encoded string
+        img_str = None
+        with open(dendrogram_path, "rb") as img_file:
+            img_str = base64.b64encode(img_file.read()).decode('utf-8')
 
-    def BIRCH_Clustering(self):
-        # Perform BIRCH clustering
-        birch = Birch(n_clusters=3)
-        birch.fit(self.df)
-        return birch.labels_
+        return img_str
 
-    def DBSCAN_Clustering(self):
-        # Perform DBSCAN clustering
-        dbscan = DBSCAN(eps=0.5, min_samples=5)
-        dbscan.fit(self.df)
-        return dbscan.labels_
-
-    def calculate_cluster_accuracy(self):
-        # Assuming you have ground truth labels for iris dataset
-        true_labels = load_iris().target
-
-        # Accuracy for k-Means
-        kmeans_accuracy = metrics.adjusted_rand_score(true_labels, self.k_Means_Clustering())
-
-        # Accuracy for k-Medoids (PAM)
-        kmedoids_accuracy = metrics.adjusted_rand_score(true_labels, self.k_Medoids_Clustering())
-
-        # Accuracy for BIRCH
-        birch_accuracy = metrics.adjusted_rand_score(true_labels, self.BIRCH_Clustering())
-
-        # Accuracy for DBSCAN
-        dbscan_accuracy = metrics.adjusted_rand_score(true_labels, self.DBSCAN_Clustering())
-
-        return {
-            "k_means_accuracy": kmeans_accuracy,
-            "k_medoids_accuracy": kmedoids_accuracy,
-            "birch_accuracy": birch_accuracy,
-            "dbscan_accuracy": dbscan_accuracy,
-        }
-    
-    def k_Medoids_Clustering(self):
-        # Convert DataFrame to a list of data points
-        data_points = self.df.values.tolist()
-
-        # Perform k-Medoids (PAM) clustering
-        initial_medoids = [0, 1, 2]  # Initial medoids
-        kmedoids_instance = kmedoids(data_points, initial_medoids)
-        kmedoids_instance.process()
-
-        # Get cluster results
-        clusters = kmedoids_instance.get_clusters()
-        medoids = kmedoids_instance.get_medoids()
-
-        # Visualize the clustering (optional)
-        visualizer = cluster_visualizer()
-        visualizer.append_clusters(clusters, data=data_points)
-        visualizer.append_cluster(medoids, marker='*', markersize=10)
-        visualizer.show()
-
-        # Return cluster labels
-        cluster_labels = [0] * len(data_points)
-        for cluster_id, cluster in enumerate(clusters):
-            for data_point_index in cluster:
-                cluster_labels[data_point_index] = cluster_id
-
-        return cluster_labels
-
+ 
