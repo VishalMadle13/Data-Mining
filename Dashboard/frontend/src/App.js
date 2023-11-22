@@ -8,6 +8,8 @@ import Assignment2 from "./scenes/assignment2";
 import Assignment3 from "./scenes/assignment3";
 import Assignment5 from "./scenes/assignment5";
 import Assignment6 from "./scenes/assignment6";
+import Assignment7 from "./scenes/assignment7";
+import Assignment8 from "./scenes/assignment8";
 import Invoices from "./scenes/invoices";
 import Bar from "./scenes/bar";
 import Form from "./scenes/form";
@@ -40,6 +42,8 @@ function App() {
               <Route path="/assignment3" element={<Assignment3 file={file}/>} />
               <Route path="/assignment5" element={<Assignment5 file={file}/>} />
               <Route path="/assignment6" element={<Assignment6 file={file}/>} />
+              <Route path="/assignment7" element={<Assignment7 file={file}/>} />
+              <Route path="/assignment8" element={<Assignment8 file={file}/>} />
               <Route path="/invoices" element={<Invoices />} />
               <Route path="/form" element={<Form />} />
               <Route path="/bar" element={<Bar />} />

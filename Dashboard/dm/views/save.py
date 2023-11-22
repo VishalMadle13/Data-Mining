@@ -1,18 +1,11 @@
-#----------------------------------------------------------------------------------------------------------------------------------#
-
-from rest_framework.views import APIView
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
-from rest_framework import status
-
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 import numpy as np
 import json
 import pickle
- 
+from scipy.sparse import csr_matrix
+
 class WebCrawler:
     def __init__(self):
         self.graph = {}  # Adjacency list to store the graph
@@ -105,70 +98,66 @@ class HITsAlgorithm:
 
         return top_pages
 
+# seed_url = "http://snap.stanford.edu/data/#web"
+# crawler = WebCrawler()
+# crawler.crawl(seed_url)
+# # Create a graph from the crawled data
+# graph = crawler.get_graph()
 
+# # Transform the graph into an adjacency matrix
+# num_pages = len(graph)
+# page_urls = list(graph.keys())
+# index_dict = {page: i for i, page in enumerate(page_urls)}
 
-class Crawler(APIView): 
-    @method_decorator(csrf_exempt)
-    def post(self, request, *args, **kwargs):
-        if request.method == 'POST':
-            try:
-                root_url = request.POST.get("root-url")
-                Crawler = WebCrawler()   
-                Crawler.crawl(root_url)
-                # Create a graph from the crawled data
-                graph = Crawler.get_graph()
+# adjacency_matrix = np.zeros((num_pages, num_pages))
+# for i, links in enumerate(graph.values()):
+#     for link in links:
+#         if link in index_dict:
+#             j = index_dict[link]
+#             adjacency_matrix[i, j] = 1
 
-                # Transform the graph into an adjacency matrix
-                num_pages = len(graph)
-                page_urls = list(graph.keys())
-                index_dict = {page: i for i, page in enumerate(page_urls)}
+# # save adjacency matrix
+# np.save("D:\WCE\\BTECH SEM 7\\DM\ASSIGNMENT\\2020BTECS00092_LA1\\Assignments\\Dashboard\\Dashboard\\dm\\views", adjacency_matrix)
 
-                adjacency_matrix = np.zeros((num_pages, num_pages))
-                for i, links in enumerate(graph.values()):
-                    for link in links:
-                        if link in index_dict:
-                            j = index_dict[link]
-                            adjacency_matrix[i, j] = 1
+# load the pkl file
+with open("D:\WCE\\BTECH SEM 7\\DM\\ASSIGNMENT\\2020BTECS00092_LA1\\Assignments\\Dashboard\\Dashboard\\graph.pkl", 'rb') as f:
+    graph = pickle.load(f)
+# load npy file
+with open('D:\WCE\\BTECH SEM 7\\DM\\ASSIGNMENT\\2020BTECS00092_LA1\\Assignments\\Dashboard\\Dashboard\\dm\\views.npy', 'rb') as f:
+    adjacency_matrix = np.load(f)
 
+page_urls = list(graph.keys())
+print(type(graph))
+print(type(adjacency_matrix))
+print(type(page_urls))
+# print(page_urls)
 
-                # Calculate PageRank using HITS algorithm
-                hits_algorithm = HITsAlgorithm()
-                hub_scores, authority_scores = hits_algorithm.hits(adjacency_matrix)
-                top_pages_by_HITS = HITsAlgorithm.get_top_pages(authority_scores, page_urls)
+# Calculate PageRank using HITS algorithm
+hits_algorithm = HITsAlgorithm()
+hub_scores, authority_scores = hits_algorithm.hits(adjacency_matrix)
+top_pages_by_HITS = HITsAlgorithm.get_top_pages(authority_scores, page_urls)
 
-                # Calculate PageRank using Pagerank algorithm
-                pr_algorithm = PageRankAlgorithm()
-                page_rank_by_pr = pr_algorithm.pagerank(adjacency_matrix.T)
-                top_pages_by_pr = PageRankAlgorithm.get_top_pages(page_rank_by_pr, page_urls)
+# Calculate PageRank using Pagerank algorithm
+pr_algorithm = PageRankAlgorithm()
+page_rank_by_pr = pr_algorithm.pagerank(adjacency_matrix.T)
+top_pages_by_pr = PageRankAlgorithm.get_top_pages(page_rank_by_pr, page_urls)
 
-                result = {
-                    "graph": graph,
-                    "page_urls" : page_urls,
-                    "hub_scores": hub_scores.tolist(),
-                    "authority_scores": authority_scores.tolist(),
-                    "top_pages_by_HITS": top_pages_by_HITS,
-                    "page_rank_by_pr": page_rank_by_pr.tolist(),
-                    "top_pages_by_pr": top_pages_by_pr
-                } 
-
-                return JsonResponse( result) 
-            except Exception as e :
-                return e
-    def get(self, request, *args, **kwargs):
-        if request.method =='GET':
-            try:
-                # open json file
-                with open('results.json','r') as f:
-                    data=json.load(f)
-                    return JsonResponse(data)
-            except Exception as e :
-                return JsonResponse(e)
-
-#----------------------------------------------------------------------------------------------------------------------------------#
+default_result = {
+    "graph": graph,
+    "hub_scores": hub_scores.tolist(),
+    "page_urls" : page_urls,
+    "authority_scores": authority_scores.tolist(),
+    "top_pages_by_HITS": top_pages_by_HITS,
+    "page_rank_by_pr": page_rank_by_pr.tolist(),
+    "top_pages_by_pr": top_pages_by_pr
+}
+# save the result
+with open('results.json', 'w') as f:
+    json.dump(default_result, f)
 
 
 
 
- 
+
 
  

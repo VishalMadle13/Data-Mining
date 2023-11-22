@@ -15,7 +15,7 @@ Including another URLconf
 """
 # urls.py
 from django.urls import path,include
-from .views import views1, views2, views3, views5 , views6
+from .views import views1, views2, views3, views5 , views6, views7, views8
 
 urlpatterns = [
     # ... other URL patterns
@@ -26,5 +26,10 @@ urlpatterns = [
     path('api/info_gain/', views3.InfoGain.as_view()),
     path('api/regression/', views5.Regression.as_view()), 
     path('api/clustering/', views6.Clustering.as_view()),
+    
+    path('api/crawler/', views8.Crawler.as_view()),
+
+    path('api/run_association_rules/', views7.run_association_rules, name='run_association_rules'),
+    path('api/run_association_rules_matrics/', views7.run_association_rules_matrics, name='run_association_rules'),
     
 ]

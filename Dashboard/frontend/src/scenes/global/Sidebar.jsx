@@ -140,6 +140,20 @@ const Sidebar = () => {
               selected={selected}
               setSelected={setSelected}
             />
+              <Item
+              title="Assignment 7"
+              to="/assignment7"
+              icon={<ReceiptOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+            />
+              <Item
+              title="Assignment 8"
+              to="/assignment8"
+              icon={<ReceiptOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+            />
           </Box>
         </Menu>
       </ProSidebar>
